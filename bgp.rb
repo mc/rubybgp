@@ -20,7 +20,7 @@ module BgpPacket
 				p[x] = 4294967295
 			end
 			p[4] = 29
-			p[5] = BGPNOTIFICATION::OPEN
+			p[5] = BGPHEADER_TYPE::OPEN
 			p[6] = @ver
 			p[7] = @asn
 			p[8] = @hold
@@ -28,10 +28,32 @@ module BgpPacket
 			p[10] = 0
 			p.pack("NNNNnccnna4c")
 		end
+
+		def len
+			return 30
+		end
+	end
+	class KeepAlive
+		def initialize
+		end
+
+		def to_s
+			p = Array.new
+			0.upto(3) do |x|
+				p[x] = 4294967295
+			end
+			p[4] = 19
+			p[5] = BGPHEADER_TYPE::KEEPALIVE
+			p.pack("NNNNnc")
+		end
+
+		def len
+			return 20
+		end
 	end
 end
 
-module BGPNOTIFICATION
+module BGPHEADER_TYPE
 	OPEN = 1
 	UPDATE = 2
 	NOTIFICATION = 3
@@ -41,8 +63,18 @@ end
 class BgpSession
 	def initialize(ip)
 		@@socket = TCPSocket.new(ip, 179)
-		@@socket.puts( BgpPacket::Open.new(999, IPAddr.new("20.30.40.50"), 30, 4) )
+
+		p = BgpPacket::Open.new(999, IPAddr.new("20.30.40.50"), 30, 4)
+		puts p.to_s.inspect
+		@@socket.send( p.to_s, p.len )
 		input
+
+		p = BgpPacket::KeepAlive.new()
+		puts p.to_s.inspect
+		@@socket.send( p.to_s, p.len )
+		while (1==1)
+			input
+		end
 	end
 
 	def input
@@ -51,7 +83,6 @@ class BgpSession
 		while (data[0] == "") ## XXX is_empty?
 			data = @@socket.recvfrom(19)
 		end
-		puts(data.inspect)
 		header = data[0]
 
 		length = (((header[16] * 8) + header[17]) - 19)
@@ -65,17 +96,16 @@ class BgpSession
 		body = data[0]
 
 		case flagsint
-			when BGPNOTIFICATION::OPEN
-				puts "open\n"
+			when BGPHEADER_TYPE::OPEN
 				if length >= 10
 					parse_open(body)
 				else
 					raise Error
 				end
-			when BGPNOTIFICATION::UPDATE
+			when BGPHEADER_TYPE::UPDATE
 				parse_update(body)
-			when BGPNOTIFICATION::NOTIFICATION
-			when BGPNOTIFICATIOn::KEEPALIVE
+			when BGPHEADER_TYPE::NOTIFICATION
+			when BGPHEADER_TYPE::KEEPALIVE
 		end
 
 	end
@@ -85,7 +115,6 @@ class BgpSession
 		res = body.unpack("Cnna4C")
 
 		packet = BgpPacket::Open.new(res[1], IPAddr.ntop(res[3]), res[2], res[0])
-		puts packet.inspect
 
 		optlen  = res[4]
 
