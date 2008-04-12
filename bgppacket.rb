@@ -21,7 +21,7 @@ module BgpPacket
 				p[x] = 4294967295
 			end
 			p[4] = 29
-			p[5] = BGPHEADER_TYPE::OPEN
+			p[5] = BGP_MSG_TYPE::OPEN
 			p[6] = @ver.to_i
 			p[7] = @asn.to_i
 			p[8] = @hold.to_i
@@ -44,7 +44,7 @@ module BgpPacket
 				p[x] = 4294967295
 			end
 			p[4] = 19
-			p[5] = BGPHEADER_TYPE::KEEPALIVE
+			p[5] = BGP_MSG_TYPE::KEEPALIVE
 			p.pack("NNNNnc")
 		end
 
