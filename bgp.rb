@@ -21,9 +21,9 @@ module BgpPacket
 			end
 			p[4] = 29
 			p[5] = BGPHEADER_TYPE::OPEN
-			p[6] = @ver
-			p[7] = @asn
-			p[8] = @hold
+			p[6] = @ver.to_i
+			p[7] = @asn.to_i
+			p[8] = @hold.to_i
 			p[9] = @id.hton
 			p[10] = 0
 			p.pack("NNNNnccnna4c")
@@ -60,28 +60,39 @@ module BGPHEADER_TYPE
 	KEEPALIVE = 4
 end
 
-class BgpSession
-	def initialize(ip)
-		@@socket = TCPSocket.new(ip, 179)
+module BGPFSM
+	IDLE = 1
+end
 
-		p = BgpPacket::Open.new(999, IPAddr.new("20.30.40.50"), 30, 4)
-		puts p.to_s.inspect
-		@@socket.send( p.to_s, p.len )
+class BgpSession
+	def initialize(local, remote)
+		@local = local
+		@remote = remote
+
+		@socket = TCPSocket.new(@remote.ip, 179)
+		@fsm = BGPFSM::IDLE
+
+		establish
+
 		input
 
 		p = BgpPacket::KeepAlive.new()
-		puts p.to_s.inspect
-		@@socket.send( p.to_s, p.len )
+		@socket.send( p.to_s, p.len )
 		while (1==1)
 			input
 		end
+	end
+
+	def establish
+		p = BgpPacket::Open.new(@local.asn, IPAddr.new(@local.router_id), 30, 4)
+		@socket.send( p.to_s, p.len )
 	end
 
 	def input
 		data = Array.new
 		data[0] = ""
 		while (data[0] == "") ## XXX is_empty?
-			data = @@socket.recvfrom(19)
+			data = @socket.recvfrom(19)
 		end
 		header = data[0]
 
@@ -92,8 +103,13 @@ class BgpSession
 
 		flagsint = header[18]
 		
-		data = @@socket.recvfrom(length)
-		body = data[0]
+		if ( length > 0 )
+			data = @socket.recvfrom(length)
+			body = data[0]
+		else
+			body = nil
+		end
+
 
 		case flagsint
 			when BGPHEADER_TYPE::OPEN
@@ -105,7 +121,10 @@ class BgpSession
 			when BGPHEADER_TYPE::UPDATE
 				parse_update(body)
 			when BGPHEADER_TYPE::NOTIFICATION
+				parse_notification(body)
 			when BGPHEADER_TYPE::KEEPALIVE
+				packet = BgpPacket::KeepAlive.new()
+				@socket.send(packet.to_s, packet.len)
 		end
 
 	end
@@ -127,4 +146,19 @@ class BgpSession
 	end
 end
 
-BgpSession.new("localhost")
+class BgpPeer
+	attr_accessor :asn, :router_id, :ip
+
+	def initialize(asn)
+		@asn = asn
+	end
+end
+
+myself = BgpPeer.new("999")
+myself.router_id = "10.20.30.40"
+
+rpeer = BgpPeer.new("7675")
+rpeer.ip = "127.0.0.1"
+
+BgpSession.new(myself, rpeer)
+
