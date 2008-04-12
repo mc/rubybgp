@@ -1,0 +1,11 @@
+module BGPHEADER_TYPE
+	OPEN = 1
+	UPDATE = 2
+	NOTIFICATION = 3
+	KEEPALIVE = 4
+end
+
+module BGPFSM
+	IDLE = 1
+end
+
