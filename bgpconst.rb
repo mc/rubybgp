@@ -28,7 +28,7 @@ module BGP::PATH_ATTR
 	AS4_PATH         = 17	# [RFC4893]	
 	AS4_AGGREGATOR   = 18	# [RFC4893] 
 	SSA              = 19	# [Nalawade]
-	Connector_Attr   = 20	# [Nalawade]
+	CONNECTOR_ATTR   = 20	# [Nalawade]
 end
 
 

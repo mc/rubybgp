@@ -56,7 +56,8 @@ class BGP::Session
 			when BGP::MSG_TYPE::OPEN
 				packet = BGP::Packet::Open.from_s(body, length)
 			when BGP::MSG_TYPE::UPDATE
-				parse_update(body, length)
+				packet = BGP::Packet::Update.from_s(body, length)
+				puts packet.inspect
 			when BGP::MSG_TYPE::NOTIFICATION
 				parse_notification(body)
 			when BGP::MSG_TYPE::KEEPALIVE
@@ -68,21 +69,6 @@ class BGP::Session
 				end
 		end
 
-	end
-
-	def parse_update(body, tlen)
-		puts "recv update"
-
-		wlen = body.unpack("n")
-		body.slice!(0..(wlen[0] + 1))
-
-		palen = body.unpack("n")
-		body.slice!(0..(palen[0] + 1))
-
-		alen = (tlen + 19) - 23 - palen[0] - wlen[0]
-		body.slice!(0..alen)
-
-		puts "recv update (#{alen} = (#{tlen} + 19) - #{palen[0]} - #{wlen[0]})"
 	end
 
 	def parse_notification(body)
