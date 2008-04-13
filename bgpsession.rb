@@ -4,17 +4,17 @@ require 'ipaddr'
 require 'bgpconst.rb'
 require 'bgppacket.rb'
 
-class BgpSession
+class BGP::Session
 	def initialize(local, remote)
 		@local = local
 		@remote = remote
 
 		@socket = TCPSocket.new(@remote.ip, 179)
-		@fsm = BGPFSM::IDLE
+		@fsm = BGP::FSM::IDLE
 
 		establish
 
-		p = BgpPacket::KeepAlive.new()
+		p = BGP::Packet::KeepAlive.new()
 		@socket.send( p.to_s, p.len )
 		while (1==1)
 			input
@@ -22,9 +22,9 @@ class BgpSession
 	end
 
 	def establish
-		p = BgpPacket::Open.new(@local.asn, IPAddr.new(@local.router_id), 30, 4)
+		p = BGP::Packet::Open.new(@local.asn, IPAddr.new(@local.router_id), 30, 4)
 		@socket.send( p.to_s, p.len )
-		@fsm = BGPFSM::OPENSENT
+		@fsm = BGP::FSM::OPENSENT
 
 		input
 	end
@@ -53,45 +53,21 @@ class BgpSession
 
 
 		case flagsint
-			when BGP_MSG_TYPE::OPEN
-				if length >= 10
-					parse_open(body)
-				else
-					raise Error
-				end
-				@fsm = BGPFSM::OPENCONFIRM
-			when BGP_MSG_TYPE::UPDATE
+			when BGP::MSG_TYPE::OPEN
+				packet = BGP::Packet::Open.from_s(body, length)
+			when BGP::MSG_TYPE::UPDATE
 				parse_update(body, length)
-			when BGP_MSG_TYPE::NOTIFICATION
+			when BGP::MSG_TYPE::NOTIFICATION
 				parse_notification(body)
-			when BGP_MSG_TYPE::KEEPALIVE
-				packet = BgpPacket::KeepAlive.new()
+			when BGP::MSG_TYPE::KEEPALIVE
+				packet = BGP::Packet::KeepAlive.new()
 				@socket.send(packet.to_s, packet.len)
-				if ( @fsm == BGPFSM::OPENSENT ||
-				     @fsm == BGPFSM::OPENCONFIRM )
-					@fsm = BGPFSM::ESTABLISHED
+				if ( @fsm == BGP::FSM::OPENSENT ||
+				     @fsm == BGP::FSM::OPENCONFIRM )
+					@fsm = BGP::FSM::ESTABLISHED
 				end
 		end
 
-	end
-
-	def parse_open(body)
-		puts "recv open"
-		#################  12241
-		res = body.unpack("Cnna4C")
-		packet = BgpPacket::Open.new(res[1], IPAddr.ntop(res[3]), res[2], res[0])
-
-		optlen  = res[4]
-		body.slice!(0..9)
-		while (optlen > 0)
-			captype = body[0]
-			caplen = body[1]
-			body.slice!(0..1)
-			capparm = body.slice!(0..(caplen-1))
-
-			puts "Received capability #{captype} : #{caplen}"
-			optlen = optlen - ( caplen + 2 )
-		end
 	end
 
 	def parse_update(body, tlen)
