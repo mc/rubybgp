@@ -88,28 +88,29 @@ module BGP::Packet
 		end
 
 		def self.from_s(str, len)
-			puts "recv update"
+			packet = BGP::Packet::Update.duplicate
 
 			wlen    = str.slice!(0..1).unpack("n")
 			if (wlen[0] > 0)
 				wstr   = str.slice!(0..(wlen[0]) - 1)
-				wroutes = decode_withdrawn(wstr, wlen[0])
+				@wroutes = decode_withdrawn(wstr, wlen[0])
+			else
+				@wroutes = nil
 			end
 
 			palen  = str.slice!(0..1).unpack("n")
 			if (palen[0] > 0)
 				pastr = str.slice!(0..(palen[0] - 1))
-				path_attr = decode_pathattr(pastr, palen[0])
+				decode_pathattr(pastr, palen[0])
 			end
 
 			alen   = (len + 19) - 23 - palen[0] - wlen[0]
-			puts "recv update (NLI:#{alen} = (T:#{len} + 19) - P:#{palen[0]} - W:#{wlen[0]})"
 
 			if (alen > 0)
 				astr  = str.slice!(0..alen - 1)
-				nli   = decode_nli(astr, alen)
+				decode_nli(astr, alen)
 			end
-
+			packet
 		end
 
 		def to_s
@@ -117,6 +118,7 @@ module BGP::Packet
 
 private
 		def self.decode_withdrawn(body, len)
+			@pfx_w = Array.new
 			plen = body.slice!(0)
 			if (plen <= 8)
 				network = body.slice!(0..0).unpack("a")
@@ -130,11 +132,11 @@ private
 			else
 				network = body.slice!(0..3).unpack("aaaa")
 			end
-			prefix = IPAddr.ntop(network)
-			puts "W: #{prefix}/#{plen}"
+			@pfx_w.push( [prefix = IPAddr.ntop(network), plen] )
 		end
 
 		def self.decode_nli(body, len)
+			@pfx = Array.new
 			while (len > 0)
 				nli_len = body.slice!(0)
 
@@ -151,15 +153,15 @@ private
 					network = body.slice!(0..3).unpack("a4")[0]
 				end
 				prefix = IPAddr.ntop(network)
+				@pfx.push( [prefix, nli_len] )
+
 				len = len - nli_len - 1
 
-				puts "A: #{prefix}/#{nli_len}"
 			end
 		end
 
 		def self.decode_pathattr(body, len)
 			while (len > 0)
-				puts "decoding PA"
 				(attrflag, attrtype) = body.slice!(0..1).unpack("CC")
 				if ( (attrflag & 16) == 16 ) # Extended Length
 					attrlen = body.slice!(0..1).unpack("n")[0]
@@ -176,97 +178,94 @@ private
 				# puts " PAlen: #{attrlen} (#{attrbody.inspect})"
 
 				if ( (attrflag & 32) == 32 )
-					puts "  Partialflag"
+					# puts "  Partialflag"
 				end
 				if ( (attrflag & 64) == 64 )
-					puts "  Transitiveflag"
+					# puts "  Transitiveflag"
 				end
 				if ( (attrflag & 128) == 128 )
-					puts "  Optionalflag"
+					# puts "  Optionalflag"
 				end
 				
 				case attrtype
-				when BGP::PATH_ATTR::ORIGIN
-					puts "   ORIGIN"
-					if attrbody[0] == 0
-						puts "     IGP"
-					elsif attrbody[0] == 1
-						puts "     EGP"
-					elsif attrbody[0] == 2
-						puts "     INC"
-					else
-						puts "     Unknown"
-					end
-				when BGP::PATH_ATTR::AS_PATH
-					puts "   AS_PATH"
-					(ptype, plen) = attrbody.slice!(0..1).unpack("CC")
-					if (ptype == 1)
-						puts "    UNORDERED"
-					elsif (ptype == 2)
-						puts "    SEQUENCE"
-					end
-					path = Array.new
-					while (plen > 0)
-						path.push(attrbody.slice!(0..1).unpack("n"))[0]
-						plen = plen - 1
-					end
-					puts "     " + path.join(" ").to_s
-				when BGP::PATH_ATTR::NEXT_HOP
-					puts "   NEXT_HOP"
-					ip = attrbody.slice!(0..3).unpack("a4")[0]
-					nh = IPAddr.ntop(ip)
-					puts "     #{nh}"
-				when BGP::PATH_ATTR::MULTI_EXIT_DISC
-					puts "   MED:"
-					med = attrbody.slice!(0..3).unpack("N")[0]
-					puts "     #{med}"
-				when BGP::PATH_ATTR::LOCAL_PREF
-					puts "   LOCAL_PREF"
-				when BGP::PATH_ATTR::ATOMIC_AGGREGATE
-					puts "   ATOMIC_AGG"
-				when BGP::PATH_ATTR::AGGREGATOR
-					puts "   AGG"
-				when BGP::PATH_ATTR::COMMUNITY
-					puts "   COMM"
-				when BGP::PATH_ATTR::ORIGINATOR_ID
-					puts "   ORIGINATOR_ID"
-				when BGP::PATH_ATTR::CLUSTER_LIST
-					puts "   CLUSTER"
-				when BGP::PATH_ATTR::DPA
-					puts "   DPA"
-				when BGP::PATH_ATTR::ADVERTISER
-					puts "   ADV"
-				when BGP::PATH_ATTR::RCID_PATH
-					puts "   RCID"
-				when BGP::PATH_ATTR::MP_REACH_NLRI
-					puts "   MP_REACH_NLRI"
-					(afi, safi, nh_len) = attrbody.slice!(0..3).unpack("nCC")
-					nh = attrbody.slice!(0..(nh_len - 1))
-					attrbody.slice!(0..0) # reserved, ignored.
-					
-					nlri_len = attrlen - nh_len - 4 - 1
-					while (nlri_len > 0)
-						plen = attrbody.slice!(0)
-						slen = plen / 8
-						if ((plen % 8) > 0)
-							slen = slen + 1
+					when BGP::PATH_ATTR::ORIGIN
+						@origin = attrbody[0]     # IGP EGP INCOMPLETE
+
+					when BGP::PATH_ATTR::AS_PATH
+						puts "   AS_PATH"
+						(ptype, plen) = attrbody.slice!(0..1).unpack("CC")
+						@aspath_type = ptype      # UNORDERED / SEQUENCE
+						@aspath = Array.new       # PATH
+						while (plen > 0)
+							@aspath.push(attrbody.slice!(0..1).unpack("n"))[0]
+							plen = plen - 1
 						end
 
-						prefix = attrbody.slice!(0..(slen-1))
-						puts "     #{afi}/#{safi} #{nh.inspect} #{prefix.inspect}/#{plen}"
+					when BGP::PATH_ATTR::NEXT_HOP
+						ip = attrbody.slice!(0..3).unpack("a4")[0]
+						@nexthop = IPAddr.ntop(ip)
 
-						nlri_len = nlri_len - slen - 1
-					end
-				when BGP::PATH_ATTR::EXT_COMMUNITIES
-					puts "   EXT_COMM"
-				when BGP::PATH_ATTR::AS4_PATH
-					puts "   ASN32_P"
-				when BGP::PATH_ATTR::AS4_AGGREGATOR
-					puts "   ASN32_A"
-				when BGP::PATH_ATTR::SSA
-					puts "   SSA"
-				when BGP::PATH_ATTR::CONNECTOR_ATTR
-					puts "   CONN_ATTR"
+					when BGP::PATH_ATTR::MULTI_EXIT_DISC
+						@med = attrbody.slice!(0..3).unpack("N")[0]
+
+					when BGP::PATH_ATTR::MP_REACH_NLRI
+						@mp_pfx = Array.new
+						(@mp_afi, @mp_safi, nh_len) = attrbody.slice!(0..3).unpack("nCC")
+						@mp_nexthop = IPAddr.ntop( attrbody.slice!(0..(nh_len - 1)) )
+						attrbody.slice!(0..0) # reserved, ignore
+					
+						nlri_len = attrlen - nh_len - 4 - 1
+						while (nlri_len > 0)
+							plen = attrbody.slice!(0)
+
+							slen = plen / 8
+							if ((plen % 8) > 0)
+								slen = slen + 1
+							end
+							prefix = attrbody.slice!(0..(slen-1))
+
+							if (afi == 2) # IPv6
+								blen = 16 - slen
+								while (blen > 0)
+									prefix.concat("\0")
+									blen = blen - 1
+								end
+							end
+
+							@mp_pfx.push([IPAddr.ntop(prefix), plen])
+
+							nlri_len = nlri_len - slen - 1
+						end
+
+					when BGP::PATH_ATTR::LOCAL_PREF
+						puts "   LOCAL_PREF"
+					when BGP::PATH_ATTR::ATOMIC_AGGREGATE
+						puts "   ATOMIC_AGG"
+					when BGP::PATH_ATTR::AGGREGATOR
+						puts "   AGG"
+					when BGP::PATH_ATTR::COMMUNITY
+						puts "   COMM"
+					when BGP::PATH_ATTR::ORIGINATOR_ID
+						puts "   ORIGINATOR_ID"
+					when BGP::PATH_ATTR::CLUSTER_LIST
+						puts "   CLUSTER"
+					when BGP::PATH_ATTR::DPA
+						puts "   DPA"
+					when BGP::PATH_ATTR::ADVERTISER
+						puts "   ADV"
+					when BGP::PATH_ATTR::RCID_PATH
+						puts "   RCID"
+
+					when BGP::PATH_ATTR::EXT_COMMUNITIES
+						puts "   EXT_COMM"
+					when BGP::PATH_ATTR::AS4_PATH
+						puts "   ASN32_P"
+					when BGP::PATH_ATTR::AS4_AGGREGATOR
+						puts "   ASN32_A"
+					when BGP::PATH_ATTR::SSA
+						puts "   SSA"
+					when BGP::PATH_ATTR::CONNECTOR_ATTR
+						puts "   CONN_ATTR"
 				end
 
 			end
