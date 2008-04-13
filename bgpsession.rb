@@ -55,6 +55,7 @@ class BGP::Session
 		case flagsint
 			when BGP::MSG_TYPE::OPEN
 				packet = BGP::Packet::Open.from_s(body, length)
+				puts packet.inspect
 			when BGP::MSG_TYPE::UPDATE
 				packet = BGP::Packet::Update.from_s(body, length)
 				puts packet.inspect
