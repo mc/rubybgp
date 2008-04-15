@@ -147,15 +147,15 @@ private
 					network.concat("\0\0\0")
 					slen = 1
 				elsif (plen <= 16)
-					network = body.slice!(0..1).unpack("aa")[0]
+					network = body.slice!(0..1).unpack("a2")[0]
 					network.concat("\0\0")
 					slen = 2
 				elsif (plen <= 24)
-					network = body.slice!(0..2).unpack("aaa")[0]
+					network = body.slice!(0..2).unpack("a3")[0]
 					network.concat("\0")
 					slen = 3
 				else
-					network = body.slice!(0..3).unpack("aaaa")[0]
+					network = body.slice!(0..3).unpack("a4")[0]
 					slen = 4
 				end
 				packet.withdraw_route(IPAddr.ntop(network), plen)
