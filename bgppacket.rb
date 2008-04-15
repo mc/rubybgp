@@ -22,9 +22,6 @@ module BGP::Packet
 		end
 
 		def self.from_s(str, len)
-			puts "++++++ INC PACKET:"
-			puts str.inspect
-
 			res = str.unpack("Cnna4C")
 			obj = BGP::Packet::Open.new(res[1], IPAddr.ntop(res[3]), res[2], res[0])
 			caps = Array.new
@@ -96,8 +93,9 @@ module BGP::Packet
 
 	class Update
 		attr_accessor :wroutes, :mp_pfx_w, :mp_pfx, :pfx
-		attr_accessor :mp_afi, :mp_safi, :mp_nexthop
+		attr_accessor :mp_afi, :mp_safi, :mp_nexthop, :community
 		attr_accessor :med, :origin, :aspath, :aspath_type, :nexthop
+		attr_accessor :agg_asn, :agg_id, :atomic_aggregate
 
 		def initialize
 			@wroutes  = nil
@@ -107,9 +105,6 @@ module BGP::Packet
 		end
 
 		def self.from_s(str, len)
-			puts "++++++ INC PACKET:"
-			puts str.inspect
-
 			packet = BGP::Packet::Update.new
 
 			wlen    = str.slice!(0..1).unpack("n")
@@ -150,12 +145,27 @@ module BGP::Packet
 			@pfx.push( [pfx, len] )
 		end
 
+		def add_community(comm)
+			if (@community == nil)
+				@community = Array.new
+			end
+			@community.push(comm)
+		end
+
+		def set_atomic_aggregate
+			@atomic_aggregate = true
+		end
+
+		def set_aggregator(asn, id)
+			@agg_asn = asn
+			@agg_id  = id
+		end
+
 
 private
 		def self.decode_withdrawn(packet, body, len)
 			while (len > 0)
 				plen = body.slice!(0)
-				puts plen.inspect
 				if (plen <= 8)
 					network = body.slice!(0..0).unpack("a")[0]
 					network.concat("\0\0\0")
@@ -334,14 +344,22 @@ private
 						packet.mp_safi    = mp_safi
 						packet.mp_pfx_w   = mp_pfx_w
 
+					when BGP::PATH_ATTR::COMMUNITY
+						while (attrlen > 0)
+							(comml, commr) = attrbody.slice!(0..3).unpack("nn")
+							packet.add_community( [comml, commr] )
+							attrlen = attrlen - 4
+						end
+
+					when BGP::PATH_ATTR::ATOMIC_AGGREGATE
+						packet.set_atomic_aggregate
+
+					when BGP::PATH_ATTR::AGGREGATOR
+						(asn, routerid) = attrbody.slice(0..5).unpack("na4")
+						packet.set_aggregator(asn, IPAddr.ntop(routerid))
+
 					when BGP::PATH_ATTR::LOCAL_PREF
 						puts "   LOCAL_PREF"
-					when BGP::PATH_ATTR::ATOMIC_AGGREGATE
-						puts "   ATOMIC_AGG"
-					when BGP::PATH_ATTR::AGGREGATOR
-						puts "   AGG"
-					when BGP::PATH_ATTR::COMMUNITY
-						puts "   COMM"
 					when BGP::PATH_ATTR::ORIGINATOR_ID
 						puts "   ORIGINATOR_ID"
 					when BGP::PATH_ATTR::CLUSTER_LIST

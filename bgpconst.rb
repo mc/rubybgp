@@ -1,6 +1,6 @@
+module BGP
 # http://www.iana.org/assignments/bgp-parameters
-
-module BGP::MSG_TYPE
+module MSG_TYPE
 	OPEN         = 1  # RFC 4271
 	UPDATE       = 2  # RFC 4271
 	NOTIFICATION = 3  # RFC 4271
@@ -8,7 +8,8 @@ module BGP::MSG_TYPE
 	REFRESH      = 5  # RFC2918
 end
 
-module BGP::PATH_ATTR
+# http://www.iana.org/assignments/bgp-parameters
+module PATH_ATTR
 	ORIGIN           = 1	# RFC4271]
 	AS_PATH          = 2	# [RFC4271]
 	NEXT_HOP         = 3	# [RFC4271]
@@ -31,16 +32,14 @@ module BGP::PATH_ATTR
 	CONNECTOR_ATTR   = 20	# [Nalawade]
 end
 
-
-
-module BGP::FSM
+module FSM
 	IDLE        = 1
 	OPENSENT    = 2
 	OPENCONFIRM = 3
 	ESTABLISHED = 4
 end
 
-module BGP
+# http://www.iana.org/assignments/capability-codes
 module CAP
 	MULTIPROTOCOL   = 1  # RFC 4760 / 2858
 	ROUTEREFRESH    = 2  # RFC 2918
@@ -52,5 +51,15 @@ module CAP
 	MULTISESSION    = 68 # [Appanna]
 	C_ROUTEREFRESH  = 128 # Cisco Route Refresh
 end
+
+
+# http://www.iana.org/assignments/bgp-well-known-communities
+module COMMUNITY
+	NO_EXPORT           = 0xFFFFFF01
+	NO_ADVERTISE        = 0xFFFFFF02
+	NO_EXPORT_SUBCONFED = 0xFFFFFF03
+	NO_PEER             = 0xFFFFFF04
+end
+
 end
 
