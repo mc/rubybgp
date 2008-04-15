@@ -155,6 +155,7 @@ private
 		def self.decode_withdrawn(packet, body, len)
 			while (len > 0)
 				plen = body.slice!(0)
+				puts plen.inspect
 				if (plen <= 8)
 					network = body.slice!(0..0).unpack("a")[0]
 					network.concat("\0\0\0")
