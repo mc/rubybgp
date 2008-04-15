@@ -22,6 +22,9 @@ module BGP::Packet
 		end
 
 		def self.from_s(str, len)
+			puts "++++++ INC PACKET:"
+			puts str.inspect
+
 			res = str.unpack("Cnna4C")
 			obj = BGP::Packet::Open.new(res[1], IPAddr.ntop(res[3]), res[2], res[0])
 			caps = Array.new
@@ -31,8 +34,15 @@ module BGP::Packet
 			while (len > 0)
 				opttype = str[0]
 				optlen = str[1]
+				
 				str.slice!(0..1)
-				optparm = str.slice!(0..(optlen-1))
+
+				if (optlen != nil && optlen > 0)
+					optparm = str.slice!(0..(optlen-1))
+				else
+					optlen = 0
+					puts "warnung: optlen = " + optlen.inspect
+				end
 
 				if (opttype == 2)  # OPTION: CAPABILITY as defined in RFC3392
 					caps.push(BGP::CAP::Plain.from_s(optparm, optlen).inspect )
@@ -97,6 +107,9 @@ module BGP::Packet
 		end
 
 		def self.from_s(str, len)
+			puts "++++++ INC PACKET:"
+			puts str.inspect
+
 			packet = BGP::Packet::Update.new
 
 			wlen    = str.slice!(0..1).unpack("n")
@@ -158,7 +171,11 @@ private
 					network = body.slice!(0..3).unpack("aaaa")
 					slen = 4
 				end
-				packet.withdraw_route(IPAddr.ntop(network), plen)
+				if (network.length == 4)
+					packet.withdraw_route(IPAddr.ntop(network), plen)
+				else
+					puts "warnung: falsche netzwerklaenge in " + network.inspect
+				end
 				len = len - slen - 1
 			end
 		end
@@ -183,7 +200,11 @@ private
 					network = body.slice!(0..3).unpack("a4")[0]
 					slen = 4
 				end
-				packet.announce_route(IPAddr.ntop(network), nli_len)
+				if (network.length == 4)
+					packet.announce_route(IPAddr.ntop(network), nli_len)
+				else
+					puts "warnung: falsche netzwerklaenge in " + network.inspect
+				end
 				len = len - slen - 1
 			end
 		end
@@ -198,7 +219,15 @@ private
 					attrlen = body.slice!(0..0).unpack("C")[0]
 					len = len - 4 
 				end
-					len = len - attrlen
+
+				if (attrlen == nil)
+					puts "warnung, attrlen == nil"
+					attrlen = 0
+					len = 0
+				end
+
+				len = len - attrlen
+
 				if (attrlen > 0)
 					attrbody = body.slice!(0..(attrlen - 1))
 				end
@@ -221,7 +250,7 @@ private
 						(ptype, plen) = attrbody.slice!(0..1).unpack("CC")
 						packet.aspath_type = ptype      # UNORDERED / SEQUENCE
 						aspath = Array.new
-						while (plen > 0)
+						while (plen && plen > 0)
 							aspath.push((attrbody.slice!(0..1).unpack("n"))[0])
 							plen = plen - 1
 						end
@@ -229,7 +258,12 @@ private
 
 					when BGP::PATH_ATTR::NEXT_HOP
 						ip = attrbody.slice!(0..3).unpack("a4")[0]
-						packet.nexthop = IPAddr.ntop(ip)
+						
+						if (ip.length == 4)
+							packet.nexthop = IPAddr.ntop(ip)
+						else
+							puts "warnung: falsche nexthoplaenge  in " + ip.inspect
+						end
 
 					when BGP::PATH_ATTR::MULTI_EXIT_DISC
 						packet.med = attrbody.slice!(0..3).unpack("N")[0]

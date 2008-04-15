@@ -17,6 +17,7 @@ class BGP::Session
 		p = BGP::Packet::KeepAlive.new()
 		@socket.send( p.to_s, p.len )
 		while (1==1)
+			puts "  ---------------------------------------------------------------"
 			input
 		end
 	end
@@ -37,16 +38,29 @@ class BGP::Session
 		end
 		header = data[0]
 
-		length = (((header[16] * 8) + header[17]) - 19)
+		if (header[16] && header[17])
+			length = (((header[16] * 256) + header[17]) - 19)
+		else
+			puts "warnung, kaputtes bgp packet ... " + header.inspect
+		end
+
 		if (length < 0 || length > (4096-19))
-			raise Error
+			puts "warnung: BGP Packet hat falsche groesse " + length.inspect + " :: " + header.inspect
 		end
 
 		flagsint = header[18]
 		
 		if ( length > 0 )
-			data = @socket.recvfrom(length)
-			body = data[0]
+			read_byte = 0
+			body = ""
+			while (read_byte < length)
+				data = @socket.recvfrom(length - read_byte)
+				puts "##debug## (" + data[0].length.to_s + "//" + length.to_s + ")" + data.inspect
+				puts "#########  " + header.inspect
+				puts "########### " + header[16].inspect + " :: " + header[17].inspect
+				body.concat(data[0])
+				read_byte = read_byte + data[0].length
+			end
 		else
 			body = nil
 		end
