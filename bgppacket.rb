@@ -156,19 +156,19 @@ private
 			while (len > 0)
 				plen = body.slice!(0)
 				if (plen <= 8)
-					network = body.slice!(0..0).unpack("a")
-					network << ("\0\0\0");
+					network = body.slice!(0..0).unpack("a")[0]
+					network.concat("\0\0\0")
 					slen = 1
 				elsif (plen <= 16)
-					network = body.slice!(0..1).unpack("aa")
-					network.concat("\0\0");
+					network = body.slice!(0..1).unpack("aa")[0]
+					network.concat("\0\0")
 					slen = 2
 				elsif (plen <= 24)
-					network = body.slice!(0..2).unpack("aaa")
-					network.concat("\0");
+					network = body.slice!(0..2).unpack("aaa")[0]
+					network.concat("\0")
 					slen = 3
 				else
-					network = body.slice!(0..3).unpack("aaaa")
+					network = body.slice!(0..3).unpack("aaaa")[0]
 					slen = 4
 				end
 				if (network.length == 4)
