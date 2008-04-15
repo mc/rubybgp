@@ -4,6 +4,9 @@ require 'ipaddr'
 require 'bgpconst.rb'
 require 'bgppacket.rb'
 
+class SessionError < StandardError
+end
+
 class BGP::Session
 	def initialize(local, remote)
 		@local = local
@@ -15,15 +18,32 @@ class BGP::Session
 		establish
 
 		p = BGP::Packet::KeepAlive.new()
-		@socket.send( p.to_s, p.len )
+		begin
+			@socket.send( p.to_s, p.len )
+		rescue
+			raise SessionError
+		end
+	end
+
+	def run
 		while (1==1)
-			input
+			begin
+				i = input
+			rescue
+				return
+			end
+
+			yield self, i
 		end
 	end
 
 	def establish
 		p = BGP::Packet::Open.new(@local.asn, IPAddr.new(@local.router_id), 30, 4)
-		@socket.send( p.to_s, p.len )
+		begin
+			@socket.send( p.to_s, p.len )
+		rescue
+			raise SessionError
+		end
 		@fsm = BGP::FSM::OPENSENT
 
 		input
@@ -33,7 +53,11 @@ class BGP::Session
 		data = Array.new
 		data[0] = ""
 		while (data[0] == "") ## XXX is_empty?
-			data = @socket.recvfrom(19)
+			begin
+				data = @socket.recvfrom(19)
+			rescue
+				raise SessionError
+			end
 		end
 		header = data[0]
 
@@ -53,7 +77,11 @@ class BGP::Session
 			read_byte = 0
 			body = ""
 			while (read_byte < length)
-				data = @socket.recvfrom(length - read_byte)
+				begin
+					data = @socket.recvfrom(length - read_byte)
+				rescue
+					raise SessionError
+				end
 				body.concat(data[0])
 				read_byte = read_byte + data[0].length
 			end
@@ -64,20 +92,23 @@ class BGP::Session
 
 		case flagsint
 			when BGP::MSG_TYPE::OPEN
-				packet = BGP::Packet::Open.from_s(body, length)
-				puts packet.inspect
+				return BGP::Packet::Open.from_s(body, length)
 			when BGP::MSG_TYPE::UPDATE
-				packet = BGP::Packet::Update.from_s(body, length)
-				puts packet.inspect
+				return packet = BGP::Packet::Update.from_s(body, length)
 			when BGP::MSG_TYPE::NOTIFICATION
 				parse_notification(body)
 			when BGP::MSG_TYPE::KEEPALIVE
 				packet = BGP::Packet::KeepAlive.new()
-				@socket.send(packet.to_s, packet.len)
+				begin
+					@socket.send(packet.to_s, packet.len)
+				rescue
+					raise SessionError
+				end
 				if ( @fsm == BGP::FSM::OPENSENT ||
 				     @fsm == BGP::FSM::OPENCONFIRM )
 					@fsm = BGP::FSM::ESTABLISHED
 				end
+				return packet
 		end
 
 	end
