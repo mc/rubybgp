@@ -1,1 +1,18 @@
-empty
+Ruby BGP is a BGP-4 Implementation in Ruby in betastages.
+
+Possible usefule use-cases are route-collectors, route-reflectors,
+and anything else which may need scripted BGP Views and/or possibilities
+to send Routes into the DFZ.
+
+Please note that rubybgp is very incomplete yet.
+
+Functionality covers *receiving* IPv4 and IPv6 Routes with limited Path
+Attributes only (well, and ofcourse OPENing the session and KEEPing it ALIVE).
+
+
+Feel free to email me (rubybgp@ukeer.de) diffs or to fork the tree (preferably
+on github :) and notify me of changes you want incorporated.
+
+Iam also open to any suggestions to implementation specifica.
+
+NB that the API is very unstable and may change at any time very heavy.
