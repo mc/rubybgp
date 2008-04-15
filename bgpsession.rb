@@ -37,7 +37,7 @@ class BGP::Session
 		end
 		header = data[0]
 
-		length = (((header[16] * 8) + header[17]) - 19)
+		length = (((header[16] * 256) + header[17]) - 19)
 		if (length < 0 || length > (4096-19))
 			raise Error
 		end
