@@ -95,6 +95,7 @@ module BGP::Packet
 		attr_accessor :wroutes, :mp_pfx_w, :mp_pfx, :pfx
 		attr_accessor :mp_afi, :mp_safi, :mp_nexthop, :community
 		attr_accessor :med, :origin, :aspath, :aspath_type, :nexthop
+		attr_accessor :asn32_path, :asn32path_type
 		attr_accessor :agg_asn, :agg_id, :atomic_aggregate
 
 		def initialize
@@ -358,6 +359,17 @@ private
 						(asn, routerid) = attrbody.slice(0..5).unpack("na4")
 						packet.set_aggregator(asn, IPAddr.ntop(routerid))
 
+					when BGP::PATH_ATTR::AS4_PATH
+						(ptype, plen) = attrbody.slice!(0..1).unpack("CC")
+						packet.asn32path_type = ptype      # UNORDERED / SEQUENCE
+						aspath = Array.new
+						while (plen && plen > 0)
+							(asnl, asnh) = attrbody.slice!(0..3).unpack("nn")
+							aspath.push("#{asnl}.#{asnh}")
+							plen = plen - 1
+						end
+						packet.asn32_path = aspath
+
 					when BGP::PATH_ATTR::LOCAL_PREF
 						puts "   LOCAL_PREF"
 					when BGP::PATH_ATTR::ORIGINATOR_ID
@@ -372,8 +384,6 @@ private
 						puts "   RCID"
 					when BGP::PATH_ATTR::EXT_COMMUNITIES
 						puts "   EXT_COMM"
-					when BGP::PATH_ATTR::AS4_PATH
-						puts "   ASN32_P"
 					when BGP::PATH_ATTR::AS4_AGGREGATOR
 						puts "   ASN32_A"
 					when BGP::PATH_ATTR::SSA

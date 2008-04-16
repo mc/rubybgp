@@ -8,6 +8,15 @@ class SessionError < StandardError
 end
 
 class BGP::Session
+	# No particular useful example, this will bounce all packets
+	# back to the peer:
+	#
+	# myself = BGP::Peer.new(asn_local)
+	# remote = BGP::Peer.new(asn_remote)
+	# session = BGP::Session.new(asn_local, asn_remote)
+	# session.run do  |sess, packet|
+	#   sess.send(packet)
+	# end
 	def initialize(local, remote)
 		@local = local
 		@remote = remote
@@ -19,7 +28,7 @@ class BGP::Session
 
 		p = BGP::Packet::KeepAlive.new()
 		begin
-			@socket.send( p.to_s, p.len )
+			send(p)
 		rescue
 			raise SessionError
 		end
@@ -33,6 +42,7 @@ class BGP::Session
 				return
 			end
 
+			
 			yield self, i
 		end
 	end
@@ -40,13 +50,22 @@ class BGP::Session
 	def establish
 		p = BGP::Packet::Open.new(@local.asn, IPAddr.new(@local.router_id), 30, 4)
 		begin
-			@socket.send( p.to_s, p.len )
+			send(p)
 		rescue
 			raise SessionError
 		end
 		@fsm = BGP::FSM::OPENSENT
 
 		input
+	end
+
+	def send(packet)
+		return @socket.send( packet.to_s, packet.len )
+	end
+
+	def socket_receive(length)
+		data = @socket.recvfrom(length)
+		return data
 	end
 
 	def input
@@ -78,7 +97,7 @@ class BGP::Session
 			body = ""
 			while (read_byte < length)
 				begin
-					data = @socket.recvfrom(length - read_byte)
+					data = socket_receive(length - read_byte)
 				rescue
 					raise SessionError
 				end
@@ -92,15 +111,15 @@ class BGP::Session
 
 		case flagsint
 			when BGP::MSG_TYPE::OPEN
-				return BGP::Packet::Open.from_s(body, length)
+				return (BGP::Packet::Open.from_s(body, length))
 			when BGP::MSG_TYPE::UPDATE
-				return packet = BGP::Packet::Update.from_s(body, length)
+				return (BGP::Packet::Update.from_s(body, length))
 			when BGP::MSG_TYPE::NOTIFICATION
-				parse_notification(body)
+				return nil
 			when BGP::MSG_TYPE::KEEPALIVE
 				packet = BGP::Packet::KeepAlive.new()
 				begin
-					@socket.send(packet.to_s, packet.len)
+					send(packet)
 				rescue
 					raise SessionError
 				end
@@ -111,10 +130,6 @@ class BGP::Session
 				return packet
 		end
 
-	end
-
-	def parse_notification(body)
-		puts "recv notif"
 	end
 end
 
