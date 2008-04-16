@@ -1,6 +1,6 @@
 Ruby BGP is a BGP-4 Implementation in Ruby in betastages.
 
-Possible usefule use-cases are route-collectors, route-reflectors,
+Possible useful use-cases are route-collectors, route-reflectors,
 and anything else which may need scripted BGP Views and/or possibilities
 to send Routes into the DFZ.
 
