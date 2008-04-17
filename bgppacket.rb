@@ -41,13 +41,13 @@ module BGP::Packet
 					puts "warnung: optlen = " + optlen.inspect
 				end
 
-				if (opttype == 2)  # OPTION: CAPABILITY as defined in RFC3392
-					caps.push(BGP::CAP::Plain.from_s(optparm, optlen).inspect )
+				if (opttype == BGP::OPT::CAPABILITY)
+					caps.push(BGP::CAP::Plain.from_s(optparm, optlen))
 				end
 
-				obj.caps = caps
 				len = len - optlen - 2
 			end
+			obj.caps = caps
 
 			return obj
 		end
@@ -99,10 +99,6 @@ module BGP::Packet
 		attr_accessor :agg_asn, :agg_id, :atomic_aggregate
 
 		def initialize
-			@wroutes  = nil
-			@mp_pfx_w = nil
-			@mp_pfx   = nil
-			@pfx      = nil
 		end
 
 		def self.from_s(str, len)
@@ -256,11 +252,11 @@ private
 				
 				case attrtype
 					when BGP::PATH_ATTR::ORIGIN
-						packet.origin = attrbody[0]     # IGP EGP INCOMPLETE
+						packet.origin = attrbody[0]
 
 					when BGP::PATH_ATTR::AS_PATH
 						(ptype, plen) = attrbody.slice!(0..1).unpack("CC")
-						packet.aspath_type = ptype      # UNORDERED / SEQUENCE
+						packet.aspath_type = ptype
 						aspath = Array.new
 						while (plen && plen > 0)
 							aspath.push((attrbody.slice!(0..1).unpack("n"))[0])
@@ -296,7 +292,7 @@ private
 							end
 							prefix = attrbody.slice!(0..(slen-1))
 
-							if (mp_afi == 2) # IPv6
+							if (mp_afi == BGP::AFI::IPV6)
 								blen = 16 - slen
 								while (blen > 0)
 									prefix.concat("\0")
@@ -328,7 +324,7 @@ private
 							end
 							prefix = attrbody.slice!(0..(slen-1))
 
-							if (afi == 2) # IPv6
+							if (afi == BGP::AFI::IPV6)
 								blen = 16 - slen
 								while (blen > 0)
 									prefix.concat("\0")
@@ -361,7 +357,7 @@ private
 
 					when BGP::PATH_ATTR::AS4_PATH
 						(ptype, plen) = attrbody.slice!(0..1).unpack("CC")
-						packet.asn32path_type = ptype      # UNORDERED / SEQUENCE
+						packet.asn32path_type = ptype
 						aspath = Array.new
 						while (plen && plen > 0)
 							(asnl, asnh) = attrbody.slice!(0..3).unpack("nn")

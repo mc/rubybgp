@@ -127,9 +127,9 @@ class BGP::Session
 				     @fsm == BGP::FSM::OPENCONFIRM )
 					@fsm = BGP::FSM::ESTABLISHED
 				end
-				return packet
+				return nil
 		end
-
+		return nil
 	end
 end
 
