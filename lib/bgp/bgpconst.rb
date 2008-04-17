@@ -61,5 +61,25 @@ module COMMUNITY
 	NO_PEER             = 0xFFFFFF04
 end
 
+module OPT
+	CAPABILITY = 2
+end
+
+module ORIGIN
+	IGP = 0
+	EGP = 1
+	INCOMPLETE =2
+end
+
+module ASPATH_TYPE
+	UNORDERED = 1
+	SEQUENCE  = 2
+end
+
+module AFI
+	IPV4 = 1
+	IPV6 = 2
+end
+
 end
 
