@@ -9,6 +9,10 @@ Please note that rubybgp is very incomplete yet.
 Functionality covers *receiving* IPv4 and IPv6 Routes with limited Path
 Attributes only (well, and ofcourse OPENing the session and KEEPing it ALIVE).
 
+collector*.rb is an example which i use to announce BGP anomalities to
+and IRC Channel.  Beware that its designed from mind only, so it may be
+difficult to follow.
+
 
 Feel free to email me (rubybgp@ukeer.de) diffs or to fork the tree (preferably
 on github :) and notify me of changes you want incorporated.

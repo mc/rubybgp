@@ -386,8 +386,7 @@ private
 						puts "   SSA"
 					when BGP::PATH_ATTR::CONNECTOR_ATTR
 						puts "   CONN_ATTR"
-				end
-
+				end # case
 			end
 		end
 	end
