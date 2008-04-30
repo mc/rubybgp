@@ -20,17 +20,24 @@ def bgp_event_handler(s, p, irc)
 		
 		### ASN_32 detection
 		if (p.respond_to?("asn32_path") && p.asn32_path != nil)
-			irc_send("ASN32_P: #{p.asn32_path.join('_')};" +
-			         "ASN_P: #{p.aspath.join('_')}")
+			@irc.send_message("#denog.bots","ASN32_P: #{p.asn32_path.join('_')}; " +
+			         "ASN_P: #{p.aspath.join('_')} [" + p.pfx.join(', ') + "]")
 		elsif (p.respond_to?("aspath") && p.aspath && p.aspath.include?(23456) )
-			irc_send("AS_TRANS w/o ASN32_P: #{p.aspath.join('_')}")
+			@irc.send_message("#denog.bots","AS_TRANS w/o ASN32_P: #{p.aspath.join('_')} [" + p.pfx.join(', ') + "]")
+		end
+
+		if (p.respond_to?("agg32_asn") && p.agg32_asn)
+			puts "."
+			puts "ASN32_AGG: #{p.agg32_asn}@#{p.agg32_id}; " +
+			         "ASN_P: #{p.aspath.join('_')} [" + p.pfx.join(', ') + "]"
 		end
 
 		### print stat every 1000 packets
 		if ((@counter % 1000) == 0)
-			irc_send("#{@counter} packets;  W:#{@withdrawn}  A:#{@announced}")
+			irc_send("#{@counter} packets;  W:#{@withdrawn}  A:#{@announced}  (Q:#{@sql_q})")
 			@withdrawn = 0
 			@announced = 0
+			@sql_q     = 0
 		end
 		
 		### long AS Paths
@@ -129,7 +136,7 @@ def bgp_event_handler(s, p, irc)
 		if (@counter < 45000) # safety net for burst phase.
 			puts $!
 		else
-			puts "== i broke. #{$!}" + $@
+			puts "== i broke. #{$!}"
 		end
 	end
 end
@@ -173,6 +180,7 @@ def db_asn_ntos(num)
 	if (@asns[num] == "")
 		asn = @sql_rir.quote(num.to_s)
 		row = @sql_rir.select_one("SELECT name FROM asn WHERE ASN=#{asn}")
+		@sql_q += 1
 		if row != nil
 			@asns[num] = row[0]
 		else
@@ -191,14 +199,15 @@ def db_seen_asn?(num)
 		@asns = Hash.new
 	end
 
-	if (@asns[num])
+	if (@asns[num] == ".")
 		return true
 	end
 
 	asn = @sql_ld.quote(num.to_s)
 	row = @sql_ld.select_one("SELECT * FROM seen_as WHERE asn=#{asn}")
+	@sql_q += 1
 	if row != nil
-		@asns[num] = ""
+		@asns[num] = "."
 		return true
 	else
 		return false
@@ -207,13 +216,23 @@ end
 
 def db_ins_seen_asn(num)
 	asn = @sql_ld.quote(num.to_s)
+	if (@asns[num] == "." && @counter < 45000)
+		return true
+	end
 	@sql_ld.do("INSERT INTO seen_as (asn, firstseen, lastseen) VALUES " +
 		"(#{asn}, NOW(), NOW())")
+	@sql_q += 1
+	@asns[num] = "."
 end
 
 def db_upd_seen_asn(num)
 	asn = @sql_ld.quote(num.to_s)
+	if (@asns[num] == "." && @counter < 45000)
+		return true
+	end
 	@sql_ld.do("UPDATE seen_as SET lastseen=NOW() WHERE asn=#{asn}")
+	@sql_q += 1
+	@asns[num] = "."
 end
 
 
@@ -222,6 +241,7 @@ def db_pfx_ntos(pfx, plen)
 	length = @sql_rir.quote(plen.to_s)
 	row = @sql_rir.select_one("SELECT netname, country, status FROM prefix "+
 		"WHERE network=#{prefix} and plen=#{length}");
+	@sql_q += 1
 	if row != nil
 		return row
 	else
@@ -233,6 +253,7 @@ def db_seen_pfx?(pfx, plen)
 	prefix = @sql_ld.quote(pfx.to_s + "/" + plen.to_s)
 	row = @sql_ld.select_one("SELECT * FROM seen_pfx "+
 		"WHERE pfx=#{prefix}")
+	@sql_q += 1
 	if row != nil
 		return true
 	else
@@ -244,11 +265,13 @@ def db_ins_seen_pfx(pfx, plen)
 	prefix = @sql_ld.quote(pfx.to_s + "/" + plen.to_s)
 	@sql_ld.do("INSERT INTO seen_pfx (pfx, firstseen, lastseen) VALUES " +
 		"(#{prefix}, NOW(), NOW())")
+	@sql_q += 1
 end
 
 def db_upd_seen_pfx(pfx, plen)
 	prefix = @sql_ld.quote(pfx.to_s + "/" + plen.to_s)
 	@sql_ld.do("UPDATE seen_pfx SET lastseen=NOW() WHERE pfx=#{prefix}")
+	@sql_q += 1
 end
 
 
@@ -256,6 +279,7 @@ def db_pfx_special?(pfx, plen)
 	prefix = @sql_ld.quote(pfx.to_s + "/" + plen.to_s)
 	row = @sql_ld.select_one("SELECT `desc` FROM special_pfx "+
 		"WHERE `pfx`=#{prefix}")
+	@sql_q += 1
 	if row != nil
 		return row[0]
 	else
@@ -268,6 +292,7 @@ def db_pfx_add_special(pfx, desc)
 	description = @sql_ld.quote(desc)
 	@sql_ld.do("INSERT INTO special_pfx (`pfx`, `desc`) VALUES " +
 		"(#{prefix}, #{description})")
+	@sql_q += 1
 end
 
 def pfx_check_bogus(prefix, plen)
@@ -367,10 +392,6 @@ def pfx_check_bogus(prefix, plen)
 		when /^112\./
 			return "BOGON"
 		when /^113\./
-			return "BOGON"
-		when /^114\./
-			return "BOGON"
-		when /^115\./
 			return "BOGON"
 		when /^173\./
 			return "BOGON"

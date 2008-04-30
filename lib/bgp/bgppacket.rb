@@ -95,7 +95,7 @@ module BGP::Packet
 		attr_accessor :wroutes, :mp_pfx_w, :mp_pfx, :pfx
 		attr_accessor :mp_afi, :mp_safi, :mp_nexthop, :community
 		attr_accessor :med, :origin, :aspath, :aspath_type, :nexthop
-		attr_accessor :asn32_path, :asn32path_type
+		attr_accessor :asn32_path, :asn32path_type, :agg32_asn, :agg32_id
 		attr_accessor :agg_asn, :agg_id, :atomic_aggregate
 
 		def initialize
@@ -156,6 +156,11 @@ module BGP::Packet
 		def set_aggregator(asn, id)
 			@agg_asn = asn
 			@agg_id  = id
+		end
+
+		def set_asn32_aggregator(asnl, asnh, id)
+			@agg32_asn = "#{asnl}.#{asnh}"
+			@agg32_id  = id
 		end
 
 
@@ -238,7 +243,10 @@ private
 
 				if (attrlen > 0)
 					attrbody = body.slice!(0..(attrlen - 1))
+				else
+					attrbody = nil
 				end
+				# puts attrbody.inspect
 
 				if ( (attrflag & 32) == 32 )
 					# puts "  Partialflag"
@@ -366,6 +374,14 @@ private
 						end
 						packet.asn32_path = aspath
 
+					when BGP::PATH_ATTR::AS4_AGGREGATOR
+						if (attrlen == 8)
+							(asnl, asnh,  routerid) = attrbody.slice!(0..7).unpack("nna4")
+							packet.set_asn32_aggregator(asnl, asnh, IPAddr.ntop(routerid))
+						else
+							puts "warning, attrlen = #{attrlen} instead of 8"
+						end
+						
 					when BGP::PATH_ATTR::LOCAL_PREF
 						puts "   LOCAL_PREF"
 					when BGP::PATH_ATTR::ORIGINATOR_ID
@@ -380,8 +396,6 @@ private
 						puts "   RCID"
 					when BGP::PATH_ATTR::EXT_COMMUNITIES
 						puts "   EXT_COMM"
-					when BGP::PATH_ATTR::AS4_AGGREGATOR
-						puts "   ASN32_A"
 					when BGP::PATH_ATTR::SSA
 						puts "   SSA"
 					when BGP::PATH_ATTR::CONNECTOR_ATTR

@@ -19,7 +19,8 @@ rpeer.ip = "194.8.57.1"
 
 @sql_rir = DBI.connect("DBI:Mysql:rir:localhost", "root")
 @sql_ld = DBI.connect("DBI:Mysql:bgp:localhost", "root")
-# @sql_ld  = DBI.connect("DBI:Pg:bgp")
+
+@sql_q = 0
 
 @irc = IRC.new("BGP4-2", "irc.uni-erlangen.de", 6667)
 IRCEvent.add_callback('endofmotd') { |event| 
@@ -55,5 +56,5 @@ t_bgp = Thread.new {
 }
 
 while (1==1)
-	sleep(1)
+	sleep(10)
 end
